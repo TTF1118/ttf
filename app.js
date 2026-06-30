@@ -2,7 +2,9 @@ const STORAGE_PREFIX = "starlingRpg:v2:";
 const ACCOUNT_PREFIX = "starlingRpg:account:";
 const LAST_ACCOUNT_KEY = "starlingRpg:lastAccount:v2";
 const IDLE_CAP_MS = 8 * 60 * 60 * 1000;
-const IDLE_TICK_MS = 9000;
+const IDLE_TICK_MS = 1000;
+const AUTO_CAMPAIGN_MS = 6000;
+const STAMINA_CAP_LIMIT = 160;
 
 const elements = {
   leaf: "森",
@@ -106,37 +108,58 @@ const equipmentRarity = {
   SSR: { name: "SSR", color: "ssr", power: 560 }
 };
 
+const EQUIP_SLOTS = {
+  WEAPON: "武器",
+  ARMOR: "衣服",
+  AURA: "光环"
+};
+
+const SLOT_WEIGHTS = {
+  "武器": 40,
+  "衣服": 40,
+  "光环": 20
+};
+
+function getEquipSlot(eid) {
+  const def = equipmentDef(eid);
+  const slot = def.slot;
+  if (slot === "武器" || slot === "衣服" || slot === "光环") return slot;
+  if (slot === "护甲") return "衣服";
+  if (slot === "饰品") return "光环";
+  return "武器";
+}
+
 const equipmentPool = [
-  { id: "leaf_charm", name: "新叶护符", slot: "饰品", rare: "white", atk: 4, def: 7, hp: 28, desc: "入门护符，提供少量生命和防御。" },
+  { id: "leaf_charm", name: "新叶护符", slot: "光环", rare: "white", atk: 4, def: 7, hp: 28, desc: "入门护符，提供少量生命和防御。" },
   { id: "copper_claw", name: "铜制利爪", slot: "武器", rare: "green", atk: 12, def: 3, hp: 20, desc: "适合前期输出伙伴。" },
-  { id: "mist_shell", name: "雾湖甲壳", slot: "护甲", rare: "green", atk: 5, def: 16, hp: 48, desc: "提高前排稳定性。" },
-  { id: "storm_ring", name: "岚雷指环", slot: "饰品", rare: "blue", atk: 22, def: 8, hp: 42, desc: "增加速度型伙伴的爆发。" },
+  { id: "mist_shell", name: "雾湖甲壳", slot: "衣服", rare: "green", atk: 5, def: 16, hp: 48, desc: "提高前排稳定性。" },
+  { id: "storm_ring", name: "岚雷指环", slot: "光环", rare: "blue", atk: 22, def: 8, hp: 42, desc: "增加速度型伙伴的爆发。" },
   { id: "moon_staff", name: "月辉短杖", slot: "武器", rare: "blue", atk: 18, def: 12, hp: 70, desc: "辅助伙伴常用装备。" },
-  { id: "rune_mail", name: "符文战甲", slot: "护甲", rare: "purple", atk: 16, def: 34, hp: 120, desc: "中期防御核心装备。" },
+  { id: "rune_mail", name: "符文战甲", slot: "衣服", rare: "purple", atk: 16, def: 34, hp: 120, desc: "中期防御核心装备。" },
   { id: "phoenix_blade", name: "绯羽刃", slot: "武器", rare: "purple", atk: 46, def: 12, hp: 90, desc: "高攻击紫装，适合强攻。" },
-  { id: "star_core", name: "星核吊坠", slot: "饰品", rare: "orange", atk: 56, def: 26, hp: 180, desc: "橙色饰品，提供全面属性。" },
-  { id: "dragon_scale", name: "龙鳞重甲", slot: "护甲", rare: "orange", atk: 34, def: 72, hp: 260, desc: "首领战前排装备。" },
-  { id: "aurora_crown", name: "极光冠冕", slot: "饰品", rare: "red", atk: 88, def: 58, hp: 360, desc: "红色传说装备，稀有且强力。" },
+  { id: "star_core", name: "星核吊坠", slot: "光环", rare: "orange", atk: 56, def: 26, hp: 180, desc: "橙色饰品，提供全面属性。" },
+  { id: "dragon_scale", name: "龙鳞重甲", slot: "衣服", rare: "orange", atk: 34, def: 72, hp: 260, desc: "首领战前排装备。" },
+  { id: "aurora_crown", name: "极光冠冕", slot: "光环", rare: "red", atk: 88, def: 58, hp: 360, desc: "红色传说装备，稀有且强力。" },
   { id: "reed_dagger", name: "芦叶短刃", slot: "武器", rare: "white", atk: 7, def: 2, hp: 18, desc: "轻便的入门武器。" },
-  { id: "cloth_robe", name: "训练布甲", slot: "护甲", rare: "white", atk: 2, def: 9, hp: 34, desc: "训练师常备的基础护甲。" },
-  { id: "ember_band", name: "余烬臂环", slot: "饰品", rare: "green", atk: 11, def: 6, hp: 38, desc: "提供少量攻击和生命。" },
-  { id: "wave_guard", name: "浪纹护肩", slot: "护甲", rare: "green", atk: 4, def: 18, hp: 58, desc: "水系伙伴常用防具。" },
+  { id: "cloth_robe", name: "训练布甲", slot: "衣服", rare: "white", atk: 2, def: 9, hp: 34, desc: "训练师常备的基础护甲。" },
+  { id: "ember_band", name: "余烬臂环", slot: "光环", rare: "green", atk: 11, def: 6, hp: 38, desc: "提供少量攻击和生命。" },
+  { id: "wave_guard", name: "浪纹护肩", slot: "衣服", rare: "green", atk: 4, def: 18, hp: 58, desc: "水系伙伴常用防具。" },
   { id: "iron_spear", name: "铁木长枪", slot: "武器", rare: "green", atk: 16, def: 5, hp: 28, desc: "可靠的前期武器。" },
-  { id: "spark_lens", name: "电光镜片", slot: "饰品", rare: "blue", atk: 24, def: 6, hp: 55, desc: "适合高速输出伙伴。" },
-  { id: "forest_cloak", name: "森语斗篷", slot: "护甲", rare: "blue", atk: 10, def: 26, hp: 92, desc: "兼具生命和防御。" },
+  { id: "spark_lens", name: "电光镜片", slot: "光环", rare: "blue", atk: 24, def: 6, hp: 55, desc: "适合高速输出伙伴。" },
+  { id: "forest_cloak", name: "森语斗篷", slot: "衣服", rare: "blue", atk: 10, def: 26, hp: 92, desc: "兼具生命和防御。" },
   { id: "shadow_blade", name: "影纹短刃", slot: "武器", rare: "blue", atk: 30, def: 8, hp: 50, desc: "影系攻击装备。" },
-  { id: "sun_medal", name: "日辉勋章", slot: "饰品", rare: "purple", atk: 34, def: 20, hp: 130, desc: "紫色通用饰品。" },
-  { id: "thunder_armor", name: "雷纹战甲", slot: "护甲", rare: "purple", atk: 20, def: 42, hp: 150, desc: "提高生存和反击能力。" },
+  { id: "sun_medal", name: "日辉勋章", slot: "光环", rare: "purple", atk: 34, def: 20, hp: 130, desc: "紫色通用饰品。" },
+  { id: "thunder_armor", name: "雷纹战甲", slot: "衣服", rare: "purple", atk: 20, def: 42, hp: 150, desc: "提高生存和反击能力。" },
   { id: "crystal_bow", name: "晶羽长弓", slot: "武器", rare: "purple", atk: 52, def: 10, hp: 86, desc: "适合高速强攻伙伴。" },
-  { id: "deep_orb", name: "深潮宝珠", slot: "饰品", rare: "purple", atk: 28, def: 28, hp: 170, desc: "水系辅助偏爱的装备。" },
+  { id: "deep_orb", name: "深潮宝珠", slot: "光环", rare: "purple", atk: 28, def: 28, hp: 170, desc: "水系辅助偏爱的装备。" },
   { id: "solar_sword", name: "日冕长剑", slot: "武器", rare: "orange", atk: 68, def: 22, hp: 160, desc: "橙色攻击装备。" },
-  { id: "world_bark", name: "古树重铠", slot: "护甲", rare: "orange", atk: 28, def: 78, hp: 310, desc: "森系前排核心装备。" },
-  { id: "void_chain", name: "虚空锁链", slot: "饰品", rare: "orange", atk: 60, def: 30, hp: 210, desc: "兼具控制和输出属性。" },
-  { id: "storm_crown", name: "雷暴王冠", slot: "饰品", rare: "orange", atk: 64, def: 24, hp: 190, desc: "雷系输出毕业饰品。" },
+  { id: "world_bark", name: "古树重铠", slot: "衣服", rare: "orange", atk: 28, def: 78, hp: 310, desc: "森系前排核心装备。" },
+  { id: "void_chain", name: "虚空锁链", slot: "光环", rare: "orange", atk: 60, def: 30, hp: 210, desc: "兼具控制和输出属性。" },
+  { id: "storm_crown", name: "雷暴王冠", slot: "光环", rare: "orange", atk: 64, def: 24, hp: 190, desc: "雷系输出毕业饰品。" },
   { id: "star_halberd", name: "星辉战戟", slot: "武器", rare: "red", atk: 98, def: 42, hp: 300, desc: "红色传说武器，爆发极高。" },
-  { id: "origin_mail", name: "源初神甲", slot: "护甲", rare: "red", atk: 62, def: 96, hp: 440, desc: "红色传说护甲，守护核心。" },
-  { id: "eclipse_eye", name: "蚀月之眼", slot: "饰品", rare: "red", atk: 92, def: 60, hp: 380, desc: "影系传说饰品。" },
-  { id: "heaven_ring", name: "天界指环", slot: "饰品", rare: "red", atk: 84, def: 70, hp: 420, desc: "光系传说饰品，属性全面。" }
+  { id: "origin_mail", name: "源初神甲", slot: "衣服", rare: "red", atk: 62, def: 96, hp: 440, desc: "红色传说护甲，守护核心。" },
+  { id: "eclipse_eye", name: "蚀月之眼", slot: "光环", rare: "red", atk: 92, def: 60, hp: 380, desc: "影系传说饰品。" },
+  { id: "heaven_ring", name: "天界指环", slot: "光环", rare: "red", atk: 84, def: 70, hp: 420, desc: "光系传说饰品，属性全面。" }
 ];
 
 const enhanceMaxByRare = { N: 3, R: 3, SR: 5, SSR: 10, UR: 20 };
@@ -218,23 +241,34 @@ const state = {
   screen: "auth",
   view: "home",
   summonTab: "pet",
+  equipFilter: "all",
+  selectedPetUid: null,
+  breakPetUid: null,
+  breakAnimating: false,
+  breakResult: null,
+  breakUseBoost: false,
+  breakUseProtect: false,
   accountMenu: false,
+  chatMessages: [],
   modal: "",
   data: null,
   log: [],
-  ticker: null
+  ticker: null,
+  autoCampaignTimer: null,
+  autoCampaignNextAt: 0
 };
 
+let activeEquipSlot = null;
+let adminPanelVisible = false;
+
 const navItems = [
-  ["home", "总览", "⌂"],
-  ["idle", "挂机", "⏱"],
-  ["campaign", "刷图", "⚔"],
-  ["team", "阵容", "◆"],
+  ["home", "大厅", "⌂"],
+  ["campaign", "冒险", "⚔"],
+  ["team", "伙伴", "◆"],
   ["summon", "召唤", "✦"],
-  ["equipment", "装备", "▣"],
-  ["growth", "养成", "▲"],
   ["tasks", "任务", "✓"],
-  ["shop", "商店", "◈"]
+  ["shop", "商店", "◈"],
+  ["bag", "背包", "🎒"]
 ];
 
 const resourceMeta = {
@@ -273,6 +307,10 @@ function defaultSave(accountName, playerName, starter = "sprout") {
     shard: 18,
     protectCard: 0,
     boostCard: 0,
+    urTicket: 0,
+    firstCharge: false,
+    firstChargeSignDays: [],
+    firstChargeSignDate: null,
     stamina: 40,
     maxStamina: 40,
     clearedStage: 0,
@@ -283,6 +321,7 @@ function defaultSave(accountName, playerName, starter = "sprout") {
     claimed: [],
     usedCodes: [],
     battleRecords: [],
+    chatMessages: [],
     inbox: [{ id: "welcome", title: "启程补给", reward: { ticket: 3, food: 300, gold: 500 } }],
     stats: { wins: 0, losses: 0, summons: 0, equipDraws: 0, idleClaims: 0, sweeps: 0, towerWins: 0 },
     towerFloor: 0,
@@ -311,6 +350,44 @@ function writeAccount(account, payload) {
   localStorage.setItem(accountKey(account), JSON.stringify(payload));
 }
 
+function getMonthCardPlayers() {
+  const raw = localStorage.getItem("starlingRpg:monthCardPlayers");
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) || {};
+  } catch {
+    return {};
+  }
+}
+
+function saveMonthCardPlayers(players) {
+  localStorage.setItem("starlingRpg:monthCardPlayers", JSON.stringify(players));
+}
+
+function hasMonthCard(playerName) {
+  const players = getMonthCardPlayers();
+  const data = players[playerName];
+  if (!data) return false;
+  if (Date.now() > data.expiresAt) {
+    delete players[playerName];
+    saveMonthCardPlayers(players);
+    return false;
+  }
+  return true;
+}
+
+function getMonthCardData(playerName) {
+  const players = getMonthCardPlayers();
+  return players[playerName] || null;
+}
+
+function getMonthCardDaysLeft(playerName) {
+  const data = getMonthCardData(playerName);
+  if (!data) return 0;
+  const diff = data.expiresAt - Date.now();
+  return Math.max(0, Math.ceil(diff / (24 * 60 * 60 * 1000)));
+}
+
 function hasGameSave(account) {
   return Boolean(localStorage.getItem(saveKey(account)));
 }
@@ -336,7 +413,36 @@ function equipmentRareKey(item) {
 }
 
 function stageById(id) {
-  return stages.find(stage => stage.id === id) || stages[0];
+  const predefined = stages.find(stage => stage.id === id);
+  if (predefined) return predefined;
+  return generateInfiniteStage(id);
+}
+
+function generateInfiniteStage(id) {
+  const chapter = Math.floor((id - 1) / 8) + 1;
+  const step = (id - 1) % 8 + 1;
+  const boss = step === 8;
+  const chapterName = chapters[Math.min(chapter - 1, chapters.length - 1)][0];
+  const power = Math.floor(
+    95 +
+    id * 42 +
+    Math.pow(id, 1.34) * 12 +
+    (boss ? 130 + (chapter - 1) * 55 : 0) +
+    Math.floor(Math.pow(id / 40, 0.5) * 200)
+  );
+  const gold = 42 + id * 16 + (boss ? 80 : 0) + Math.floor(id / 10) * 10;
+  const food = 26 + id * 9 + (boss ? 50 : 0) + Math.floor(id / 10) * 6;
+  const shard = boss ? 2 + Math.floor(id / 20) : id % 3 === 0 ? 1 : 0;
+  const gem = boss ? 10 + Math.floor(id / 10) * 2 : 0;
+  return {
+    id,
+    chapter: Math.min(chapter, 99),
+    name: `${chapterName} ${step}`,
+    enemy: boss ? `${chapterName}首领` : enemyNames[id % enemyNames.length],
+    boss,
+    power,
+    reward: { gold, food, shard, gem }
+  };
 }
 
 function load(account) {
@@ -362,6 +468,10 @@ function normalizeSave() {
   save.food ??= 0;
   save.protectCard ??= 0;
   save.boostCard ??= 0;
+  save.urTicket ??= 0;
+  save.firstCharge ??= false;
+  save.firstChargeSignDays ??= [];
+  save.firstChargeSignDate ??= null;
   save.stamina ??= save.energy ?? 40;
   save.maxStamina ??= save.maxEnergy ?? 40;
   save.clearedStage ??= Math.max(0, (save.unlockedStage || 1) - 1);
@@ -385,6 +495,7 @@ function normalizeSave() {
   save.claimed ??= [];
   save.usedCodes ??= [];
   save.battleRecords ??= [];
+  save.chatMessages ??= [];
   save.inbox ??= [];
   save.lastIdleAt ??= Date.now();
   save.lastStaminaAt ??= Date.now();
@@ -424,6 +535,11 @@ function formatReward(reward) {
     .filter(([, value]) => value)
     .map(([key, value]) => `${label(key)} +${formatNum(value)}`)
     .join("，");
+}
+
+function staminaBreakCost() {
+  const level = Math.max(0, Math.floor((state.data.maxStamina - 40) / 5));
+  return 80 + level * 35;
 }
 
 function addLog(text) {
@@ -608,11 +724,36 @@ function claimIdle() {
 
 function recoverStamina() {
   if (!state.data) return;
+  // 体力已满则不恢复
+  if (state.data.stamina >= state.data.maxStamina) return;
   const elapsed = Math.floor((Date.now() - state.data.lastStaminaAt) / (5 * 60000));
   if (elapsed > 0) {
     state.data.stamina = Math.min(state.data.maxStamina, state.data.stamina + elapsed);
     state.data.lastStaminaAt += elapsed * 5 * 60000;
   }
+}
+
+function getStaminaRecoveryTime() {
+  if (!state.data) return { remaining: 0, nextAt: 0 };
+  if (state.data.stamina >= state.data.maxStamina) return { remaining: 0, nextAt: 0, seconds: 0, minutes: 0, secondsPart: 0 };
+  const interval = 5 * 60 * 1000;
+  const elapsed = Date.now() - state.data.lastStaminaAt;
+  const remaining = Math.max(0, interval - (elapsed % interval));
+  return {
+    remaining,
+    nextAt: Date.now() + remaining,
+    seconds: Math.ceil(remaining / 1000),
+    minutes: Math.floor(remaining / 60000),
+    secondsPart: Math.ceil((remaining % 60000) / 1000)
+  };
+}
+
+function formatRecoveryTime(seconds) {
+  if (seconds <= 0) return "即将恢复";
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  if (mins > 0) return `${mins}分${secs}秒`;
+  return `${secs}秒`;
 }
 
 function battleScore(stage) {
@@ -654,15 +795,59 @@ function challenge(stageId, options = {}) {
   return win;
 }
 
-function autoCampaign() {
-  let wins = 0;
-  while (state.data.stamina >= 5 && state.data.clearedStage < stages.length) {
-    const next = state.data.clearedStage + 1;
-    const ok = challenge(next, { skipRender: true });
-    if (!ok) break;
-    wins += 1;
+function isAutoCampaignRunning() {
+  return Boolean(state.autoCampaignTimer);
+}
+
+function stopAutoCampaign(reason = "") {
+  if (state.autoCampaignTimer) {
+    clearInterval(state.autoCampaignTimer);
+    state.autoCampaignTimer = null;
   }
-  addLog(wins > 0 ? `自动主线完成，连续通关 ${wins} 关。` : "自动主线停止：战力不足或体力不足。");
+  state.autoCampaignNextAt = 0;
+  if (reason) addLog(`自动主线停止：${reason}。`);
+  persist();
+  render();
+}
+
+function runAutoCampaignStep() {
+  if (!state.data) {
+    stopAutoCampaign();
+    return;
+  }
+  recoverStamina();
+  // 无限模式：每100关提示一次，但不停止
+  if (state.data.clearedStage > 0 && state.data.clearedStage % 100 === 0) {
+    addLog(`🎉 已通关 ${state.data.clearedStage} 关！继续前进！`);
+  }
+  if (state.data.stamina < 5) {
+    stopAutoCampaign("体力不足");
+    return;
+  }
+  const next = state.data.clearedStage + 1;
+  const ok = challenge(next, { skipRender: true });
+  if (!ok) {
+    stopAutoCampaign("挑战失败，建议先提升阵容");
+    return;
+  }
+  state.autoCampaignNextAt = Date.now() + AUTO_CAMPAIGN_MS;
+  persist();
+  render();
+}
+
+function toggleAutoCampaign() {
+  if (state.autoCampaignTimer) {
+    stopAutoCampaign("已手动关闭");
+    return;
+  }
+  if (state.data.stamina < 5) {
+    addLog("自动主线无法开始：体力不足。");
+    render();
+    return;
+  }
+  state.autoCampaignNextAt = Date.now() + AUTO_CAMPAIGN_MS;
+  addLog(`自动主线已开启，每 ${Math.round(AUTO_CAMPAIGN_MS / 1000)} 秒挑战 1 关。`);
+  state.autoCampaignTimer = setInterval(runAutoCampaignStep, AUTO_CAMPAIGN_MS);
   persist();
   render();
 }
@@ -709,14 +894,22 @@ function setFarmStage(id) {
 
 function grantTeamExp(amount) {
   if (amount <= 0) return;
+  const upgrades = [];
   activePets().forEach(pet => {
     pet.exp += amount;
+    let count = 0;
     while (pet.exp >= expNeed(pet.level) && pet.level < 80) {
       pet.exp -= expNeed(pet.level);
       pet.level += 1;
-      addLog(`${monster(pet.mid).name} 升到 ${pet.level} 级。`);
+      count += 1;
+    }
+    if (count > 0) {
+      upgrades.push(`${monster(pet.mid).name} +${count}级 → ${pet.level}级`);
     }
   });
+  if (upgrades.length) {
+    addLog(`经验结算：${upgrades.join("、")}。`);
+  }
 }
 
 function train(uid) {
@@ -766,6 +959,76 @@ function enhancePet(uid, useProtect = false, useBoost = false) {
   }
   persist();
   render();
+}
+
+function enhancePetWithOptions(uid) {
+  const pet = state.data.roster.find(item => item.uid === uid);
+  if (!pet) return;
+  const useProtect = state.data.protectCard > 0 && confirm(`使用保级卡？失败时不掉级（持有 ${state.data.protectCard} 张）`);
+  const useBoost = state.data.boostCard > 0 && confirm(`使用幸运符？成功率+15%（持有 ${state.data.boostCard} 张）`);
+  enhancePet(uid, useProtect, useBoost);
+}
+
+function openBreakView(uid) {
+  state.breakPetUid = uid;
+  state.breakResult = null;
+  state.breakAnimating = false;
+  state.breakUseBoost = false;
+  state.breakUseProtect = false;
+  state.modal = "breakView";
+  render();
+}
+
+function closeBreakView() {
+  state.breakPetUid = null;
+  state.breakResult = null;
+  state.breakAnimating = false;
+  state.breakUseBoost = false;
+  state.breakUseProtect = false;
+  state.modal = "";
+  render();
+}
+
+function executeBreak() {
+  const pet = state.data.roster.find(item => item.uid === state.breakPetUid);
+  if (!pet) return;
+  if ((pet.enhance || 0) >= enhanceMax(pet) || pet.copies < 1) return;
+
+  const useProtect = state.breakUseProtect || false;
+  const useBoost = state.breakUseBoost || false;
+  if (useProtect && state.data.protectCard < 1) return;
+  if (useBoost && state.data.boostCard < 1) return;
+
+  state.breakAnimating = true;
+  state.breakResult = null;
+  render();
+
+  const finalRate = Math.min(95, enhanceRate(pet) + (useBoost ? 15 : 0));
+  const success = Math.random() * 100 < finalRate;
+  pet.copies -= 1;
+  if (useProtect) state.data.protectCard -= 1;
+  if (useBoost) state.data.boostCard -= 1;
+
+  setTimeout(() => {
+    if (success) {
+      pet.enhance = (pet.enhance || 0) + 1;
+      state.breakResult = "success";
+      addLog(`${monster(pet.mid).name} 突破成功，提升到 +${pet.enhance}。`);
+    } else {
+      const before = pet.enhance || 0;
+      const drop = before >= 10 && !useProtect;
+      pet.enhance = drop ? Math.max(0, before - 1) : before;
+      state.breakResult = "fail";
+      addLog(`${monster(pet.mid).name} 突破失败${drop ? `，等级降到 +${pet.enhance}` : "，等级不变"}。`);
+    }
+    persist();
+    state.breakAnimating = false;
+    render();
+
+    setTimeout(() => {
+      render();
+    }, 1500);
+  }, 800);
 }
 
 function rarityRoll(pool = "ticket") {
@@ -854,8 +1117,15 @@ function drawEquipment(count = 1) {
   const results = [];
   for (let i = 0; i < count; i += 1) {
     const rare = equipmentRareRoll();
-    const pool = equipmentPool.filter(item => item.rare === rare);
-    const picked = pool[Math.floor(Math.random() * pool.length)] || equipmentPool[0];
+    const slotRand = Math.random() * 100;
+    let targetSlot = "武器";
+    if (slotRand < SLOT_WEIGHTS["武器"]) targetSlot = "武器";
+    else if (slotRand < SLOT_WEIGHTS["武器"] + SLOT_WEIGHTS["衣服"]) targetSlot = "衣服";
+    else targetSlot = "光环";
+    const pool = equipmentPool.filter(item => item.rare === rare && getEquipSlot(item.id) === targetSlot);
+    const fallbackPool = equipmentPool.filter(item => item.rare === rare);
+    const pickPool = pool.length ? pool : fallbackPool;
+    const picked = pickPool[Math.floor(Math.random() * pickPool.length)] || equipmentPool[0];
     state.data.equipment.push(createEquip(picked.id));
     results.push(`${equipmentRarity[equipmentRareKey(picked)].name}${picked.name}`);
   }
@@ -873,10 +1143,87 @@ function setSummonTab(tab) {
 function equipItem(petUid, equipUid) {
   const item = state.data.equipment.find(equip => equip.uid === equipUid);
   if (!item) return;
+  const slot = getEquipSlot(item.eid);
+  if (petUid) {
+    const existing = state.data.equipment.find(e => e.petUid === petUid && getEquipSlot(e.eid) === slot && e.uid !== equipUid);
+    if (existing) {
+      existing.petUid = "";
+      addLog(`${equipmentDef(existing.eid).name} 被替换卸下。`);
+    }
+  }
   item.petUid = item.petUid === petUid ? "" : petUid;
   addLog(`${equipmentDef(item.eid).name}${item.petUid ? "已穿戴" : "已卸下"}。`);
   persist();
   render();
+}
+
+function equipItemFromDetail(petUid, equipUid, slot) {
+  if (!equipUid) {
+    const existing = state.data.equipment.find(e => e.petUid === petUid && getEquipSlot(e.eid) === slot);
+    if (existing) {
+      existing.petUid = "";
+      addLog(`${equipmentDef(existing.eid).name} 已卸下。`);
+    }
+    persist();
+    render();
+    return;
+  }
+  equipItem(petUid, equipUid);
+}
+
+function toggleEquipSelect(petUid, slot) {
+  const panel = document.getElementById("equipSelectPanel");
+  if (!panel) return;
+  if (activeEquipSlot === `${petUid}-${slot}`) {
+    panel.style.display = "none";
+    activeEquipSlot = null;
+    return;
+  }
+  activeEquipSlot = `${petUid}-${slot}`;
+  const pet = state.data.roster.find(p => p.uid === petUid);
+  if (!pet) return;
+  const equipped = petEquipList(petUid);
+  const availableEquip = state.data.equipment.filter(e => !e.petUid);
+  const current = equipped.find(e => getEquipSlot(e.eid) === slot);
+  const avail = availableEquip
+    .filter(e => getEquipSlot(e.eid) === slot)
+    .sort((a, b) => (equipOrder[equipmentRareKey(equipmentDef(b.eid))] || 0) - (equipOrder[equipmentRareKey(equipmentDef(a.eid))] || 0));
+  const slotIcons = { "武器": "🗡️", "衣服": "🛡️", "光环": "✨" };
+  panel.innerHTML = `
+    <div class="equip-select-content">
+      <div class="equip-select-header">
+        <span>${slotIcons[slot]} ${slot}</span>
+        <button class="equip-select-close" onclick="closeEquipSelect()">×</button>
+      </div>
+      <div class="equip-select-list">
+        ${current ? `
+          <button class="equip-option-item current" onclick="equipItemFromDetail('${petUid}', '', '${slot}'); closeEquipSelect();">
+            <span class="eq-name">${equipmentDef(current.eid).name}</span>
+            <span class="eq-status">✓ 已穿戴</span>
+            <span class="eq-action">点击卸下</span>
+          </button>
+        ` : `<div class="equip-option-empty">当前无装备</div>`}
+        ${avail.length ? avail.map(e => {
+          const def = equipmentDef(e.eid);
+          const rareKey = equipmentRareKey(def);
+          return `
+            <button class="equip-option-item ${rareKey.toLowerCase()}" onclick="equipItemFromDetail('${petUid}', '${e.uid}', '${slot}'); closeEquipSelect();">
+              <span class="eq-rare ${rareKey.toLowerCase()}">${equipmentRarity[rareKey].name}</span>
+              <span class="eq-name">${def.name}</span>
+              <span class="eq-power">${equipmentPower(e)}</span>
+            </button>
+          `;
+        }).join("") : `<div class="equip-option-empty">无可用装备</div>`}
+      </div>
+    </div>
+  `;
+  panel.style.display = "block";
+}
+
+function closeEquipSelect() {
+  const panel = document.getElementById("equipSelectPanel");
+  if (panel) panel.style.display = "none";
+  activeEquipSlot = null;
 }
 
 function toggleActive(uid) {
@@ -911,6 +1258,77 @@ function claimMail(id) {
   render();
 }
 
+function getFirstChargeRewards() {
+  return {
+    1: {
+      title: "第1天",
+      rewards: [
+        { label: "UR自选券 ×1", icon: "🌟", key: "urTicket", value: 1 },
+        { label: "召唤券 ×10", icon: "✦", key: "ticket", value: 10 }
+      ]
+    },
+    2: {
+      title: "第2天",
+      rewards: [
+        { label: "召唤券 ×5", icon: "✦", key: "ticket", value: 5 },
+        { label: "幸运符 ×5", icon: "🍀", key: "boostCard", value: 5 }
+      ]
+    },
+    3: {
+      title: "第3天",
+      rewards: [
+        { label: "召唤券 ×10", icon: "✦", key: "ticket", value: 10 },
+        { label: "体力包 ×5（+100体力/个）", icon: "⚡", key: "staminaPack", value: 5 }
+      ]
+    }
+  };
+}
+
+function canClaimFirstChargeDay(day) {
+  const save = state.data;
+  if (!save.firstCharge) return false;
+  if (save.firstChargeSignDays.includes(day)) return false;
+  if (day > 1 && !save.firstChargeSignDays.includes(day - 1)) return false;
+  const today = currentDateKey();
+  if (save.firstChargeSignDate === today && save.firstChargeSignDays.length > 0) return false;
+  return true;
+}
+
+function claimFirstChargeDay(day) {
+  const save = state.data;
+  if (!canClaimFirstChargeDay(day)) return;
+  const rewards = getFirstChargeRewards()[day];
+  if (!rewards) return;
+
+  rewards.rewards.forEach(reward => {
+    if (reward.key === "staminaPack") {
+      save.stamina += reward.value * 100;
+    } else {
+      save[reward.key] = (save[reward.key] || 0) + reward.value;
+    }
+  });
+  save.firstChargeSignDays.push(day);
+  save.firstChargeSignDate = currentDateKey();
+  addLog(`领取首充第 ${day} 天奖励。`);
+
+  if (save.urTicket > 0) {
+    state.modal = "urSelect";
+    addLog("获得 UR 自选券，请选择你的 UR 伙伴。");
+  }
+  persist();
+  render();
+}
+
+function selectUrPet(mid) {
+  if (!state.data || state.data.urTicket <= 0) return;
+  if (monster(mid).rare !== "UR") return;
+  state.data.urTicket -= 1;
+  addMonster(mid);
+  addLog(`UR 自选完成：${monster(mid).name}。`);
+  persist();
+  closeModal();
+}
+
 function towerFight(options = {}) {
   const floor = state.data.towerFloor + 1;
   const power = 260 + floor * 96 + Math.pow(floor, 1.35) * 18;
@@ -934,17 +1352,37 @@ function towerFight(options = {}) {
 function buy(item) {
   const offers = {
     ticket: { cost: { gem: 90 }, reward: { ticket: 1 } },
-    stamina: { cost: { gem: 50 }, reward: { stamina: 20 } },
+    stamina: { cost: { gem: 50 }, reward: { stamina: 20 }, overflow: true },
     shard: { cost: { gold: 420 }, reward: { shard: 5 } },
     food: { cost: { gold: 360 }, reward: { food: 500 } },
     protectCard: { cost: { gem: 120 }, reward: { protectCard: 1 } },
     boostCard: { cost: { gem: 80 }, reward: { boostCard: 1 } }
   };
+  if (item === "staminaCap") {
+    if (state.data.maxStamina >= STAMINA_CAP_LIMIT) {
+      addLog("体力上限已达到当前版本最高值。");
+      render();
+      return;
+    }
+    const cost = staminaBreakCost();
+    if (state.data.gem < cost) return;
+    state.data.gem -= cost;
+    state.data.maxStamina += 5;
+    state.data.stamina = Math.min(state.data.maxStamina, state.data.stamina + 5);
+    addLog(`体力上限突破成功，上限提升到 ${state.data.maxStamina}。`);
+    persist();
+    render();
+    return;
+  }
   const offer = offers[item];
   if (!offer) return;
   if (Object.entries(offer.cost).some(([key, value]) => state.data[key] < value)) return;
   Object.entries(offer.cost).forEach(([key, value]) => state.data[key] -= value);
-  applyReward(offer.reward);
+  if (offer.overflow) {
+    state.data.stamina += offer.reward.stamina || 0;
+  } else {
+    applyReward(offer.reward);
+  }
   addLog(`商店购买成功，${formatReward(offer.reward)}。`);
   persist();
   render();
@@ -958,6 +1396,119 @@ function resetSave() {
   load(name);
   addLog("当前账号存档已重置。");
   render();
+}
+
+function toggleAdminPanel() {
+  const pw = prompt("请输入管理员密码：");
+  if (pw === "admin123") {
+    adminPanelVisible = !adminPanelVisible;
+    render();
+    return;
+  }
+  alert("密码错误！");
+}
+
+function adminActivateByName() {
+  const name = document.getElementById("adminPlayerName")?.value?.trim();
+  if (!name) {
+    alert("请输入玩家游戏名字！");
+    return;
+  }
+  if (!confirm(`确认给 "${name}" 激活月卡（30天）？`)) return;
+
+  const players = getMonthCardPlayers();
+  const now = Date.now();
+  players[name] = {
+    activatedAt: now,
+    expiresAt: now + 30 * 24 * 60 * 60 * 1000,
+    firstCharge: true
+  };
+  saveMonthCardPlayers(players);
+
+  if (state.data && state.data.name === name) {
+    state.data.firstCharge = true;
+    addLog("月卡已激活。");
+    persist();
+    render();
+  }
+  alert(`"${name}" 的月卡已激活！`);
+}
+
+function adminAdd30Days() {
+  const name = document.getElementById("adminPlayerName")?.value?.trim();
+  if (!name) {
+    alert("请输入玩家游戏名字！");
+    return;
+  }
+  const players = getMonthCardPlayers();
+  if (!players[name]) {
+    alert("该玩家没有月卡！");
+    return;
+  }
+  players[name].expiresAt += 30 * 24 * 60 * 60 * 1000;
+  saveMonthCardPlayers(players);
+  alert(`"${name}" 已续费30天！`);
+  render();
+}
+
+function adminRemoveMonthCard() {
+  const name = document.getElementById("adminPlayerName")?.value?.trim();
+  if (!name) {
+    alert("请输入玩家游戏名字！");
+    return;
+  }
+  if (!confirm(`确认移除 "${name}" 的月卡？`)) return;
+  const players = getMonthCardPlayers();
+  delete players[name];
+  saveMonthCardPlayers(players);
+  alert(`"${name}" 的月卡已移除！`);
+  render();
+}
+
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function chatMessageMarkup(msg) {
+  return `
+    <div class="chat-message ${msg.isMonthCard ? "month-card" : ""}">
+      <span class="chat-player ${msg.isMonthCard ? "vip" : ""}">
+        ${msg.isMonthCard ? "👑 " : ""}${escapeHtml(msg.player)}
+      </span>
+      <span class="chat-text">${escapeHtml(msg.message)}</span>
+      <span class="chat-time">${new Date(msg.time).toLocaleTimeString()}</span>
+    </div>
+  `;
+}
+
+function sendChatMessage() {
+  const input = document.getElementById("chatInput");
+  const msg = input?.value?.trim();
+  if (!msg) return;
+  if (msg.length > 200) {
+    alert("消息太长，最多200字！");
+    return;
+  }
+
+  state.data.chatMessages.unshift({
+    player: state.data.name,
+    message: msg,
+    time: Date.now(),
+    isMonthCard: hasMonthCard(state.data.name)
+  });
+  state.data.chatMessages = state.data.chatMessages.slice(0, 100);
+  input.value = "";
+  persist();
+  renderChat();
+}
+
+function renderChat() {
+  const container = document.getElementById("chatContainer");
+  if (!container) return;
+  const messages = state.data?.chatMessages || [];
+  container.innerHTML = messages.map(chatMessageMarkup).join("");
 }
 
 function setAuthMode(mode) {
@@ -1034,6 +1585,11 @@ function createCharacter() {
 }
 
 function logout() {
+  if (state.autoCampaignTimer) {
+    clearInterval(state.autoCampaignTimer);
+    state.autoCampaignTimer = null;
+    state.autoCampaignNextAt = 0;
+  }
   state.account = "";
   state.data = null;
   state.log = [];
@@ -1057,6 +1613,22 @@ function openModal(name) {
 }
 
 function closeModal() {
+  state.modal = "";
+  state.selectedPetUid = null;
+  state.breakPetUid = null;
+  state.breakAnimating = false;
+  state.breakResult = null;
+  render();
+}
+
+function openPetDetail(uid) {
+  state.selectedPetUid = uid;
+  state.modal = "petDetail";
+  render();
+}
+
+function closePetDetail() {
+  state.selectedPetUid = null;
   state.modal = "";
   render();
 }
@@ -1146,6 +1718,10 @@ function redeemCode() {
 
 function rechargeDiamonds(amount, label) {
   state.data.gem += amount;
+  if (!state.data.firstCharge) {
+    state.data.firstCharge = true;
+    addLog("首充福利已开启，可在大厅领取 3 日签到奖励。");
+  }
   addLog(`充值模拟：${label}，钻石 +${amount}。`);
   persist();
   closeModal();
@@ -1188,6 +1764,7 @@ function renderAccount() {
         <div class="avatar">${initial}</div>
         <div class="player-copy">
           <strong>${state.data.name}</strong>
+          ${hasMonthCard(state.data.name) ? '<span class="month-card-badge">👑</span>' : ""}
           <span>${state.data.title} · 战力 ${formatNum(teamPower())}</span>
         </div>
         <span class="menu-caret">⌄</span>
@@ -1222,10 +1799,10 @@ function renderResources() {
   const rows = [
     ["gold", state.data.gold],
     ["gem", state.data.gem],
+    ["stamina", `${state.data.stamina}/${state.data.maxStamina}`],
     ["ticket", state.data.ticket],
     ["food", state.data.food],
     ["shard", state.data.shard],
-    ["stamina", `${state.data.stamina}/${state.data.maxStamina}`],
     ["idle", `${idle.minutes} 分`]
   ];
   el.innerHTML = rows.map(([key, value]) => {
@@ -1236,6 +1813,9 @@ function renderResources() {
         <i aria-hidden="true">${icon}</i>
         <span>${name}</span>
         <strong>${display}</strong>
+        ${key === "stamina" ? state.data.stamina < state.data.maxStamina
+          ? `<span class="recovery-timer">⏳ ${formatRecoveryTime(getStaminaRecoveryTime().seconds)}</span>`
+          : `<span class="recovery-timer full">✅ 已满</span>` : ""}
         ${key === "gem" ? `<button class="recharge-chip" onclick="openModal('recharge')" title="充值钻石">充值</button>` : ""}
       </div>
     `;
@@ -1346,11 +1926,203 @@ function renderModal() {
       <section class="modal-card narrow-modal">
         ${close}
         <div class="modal-head"><div><h2>钻石充值</h2><p>当前为本地原型模拟充值，不包含真实支付。</p></div></div>
+        <div class="qr-placeholder">
+          <img src="qrcode.png" alt="微信收款码" class="qr-image">
+          <p class="qr-hint">扫码支付 30 元，备注游戏名字</p>
+        </div>
+        <div class="month-card-details">
+          <h4>📋 月卡福利清单</h4>
+          <div class="detail-list">
+            <div class="detail-item"><span>💎 立即到账</span><b>300 钻石</b></div>
+            <div class="detail-item"><span>📦 每日福利</span><b>钻石+20 / 体力+15 / 召唤券+1</b></div>
+            <div class="detail-item"><span>⚡ 体力上限</span><b>+20（月卡期间）</b></div>
+            <div class="detail-item"><span>🎯 自动主线</span><b>体力消耗 -1（每次4点）</b></div>
+            <div class="detail-item"><span>⏱️ 挂机收益</span><b>+20%</b></div>
+            <div class="detail-item highlight"><span>🎁 首充额外</span><b>UR自选券 ×1</b></div>
+          </div>
+        </div>
         <div class="recharge-grid">
           <button onclick="rechargeDiamonds(120, '月光小包')"><strong>120 钻石</strong><span>月光小包</span></button>
           <button onclick="rechargeDiamonds(680, '星辉礼包')"><strong>680 钻石</strong><span>星辉礼包</span></button>
           <button onclick="rechargeDiamonds(1980, '远征补给')"><strong>1,980 钻石</strong><span>远征补给</span></button>
         </div>
+      </section>
+    `,
+    urSelect: `
+      <section class="modal-card guide-modal">
+        ${close}
+        <div class="modal-head"><div><h2>UR 自选券</h2><p>选择 1 名 UR 伙伴加入阵容。重复选择会转为该伙伴碎片。</p></div></div>
+        <div class="grid two">
+          ${monsters.filter(item => item.rare === "UR").map(item => `
+            <article class="card ${rarityBorderClass(item.rare)}">
+              <div class="pet-title">
+                <div><strong>${item.name}</strong><span>${elements[item.element]}系 · ${roles[item.role]}</span></div>
+                <i class="${rarityClass(item.rare)}">${item.rare}</i>
+              </div>
+              <p>${item.skill}</p>
+              <div class="mini-stats"><span>HP ${item.hp}</span><span>攻 ${item.atk}</span><span>防 ${item.def}</span><span>速 ${item.spd}</span></div>
+              <button class="primary full-button" onclick="selectUrPet('${item.id}')">选择</button>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+    `,
+    petDetail: `
+      <section class="modal-card pet-detail-modal">
+        ${close}
+        ${(function() {
+          const pet = state.data.roster.find(p => p.uid === state.selectedPetUid);
+          if (!pet) return `<p>伙伴不存在</p>`;
+          const base = monster(pet.mid);
+          const cost = levelCost(pet);
+          const scost = starCost(pet);
+          const need = expNeed(pet.level);
+          const equipped = petEquipList(pet.uid);
+          const maxEnhance = enhanceMax(pet);
+          const rate = enhanceRate(pet);
+          const enhanceDone = (pet.enhance || 0) >= maxEnhance;
+          const weapon = equipped.find(e => getEquipSlot(e.eid) === "武器");
+          const armor = equipped.find(e => getEquipSlot(e.eid) === "衣服");
+          const aura = equipped.find(e => getEquipSlot(e.eid) === "光环");
+          const availableEquip = state.data.equipment.filter(e => !e.petUid);
+          return `
+            <div class="pet-detail-header">
+              <div class="pet-detail-name">
+                <h2>${base.name}</h2>
+                <span class="star-display">${renderStars(pet.stars)}</span>
+                <span class="pet-detail-rare ${base.rare.toLowerCase()}">${base.rare}</span>
+              </div>
+              <div class="pet-detail-meta">
+                <span>${elements[base.element]}系 · ${roles[base.role]}</span>
+                <span>${base.skill}</span>
+              </div>
+            </div>
+            <div class="pet-detail-body">
+              <div class="detail-stats-row">
+                <div class="detail-stat">
+                  <label>等级</label>
+                  <b>${pet.level} / 80</b>
+                  <div class="bar"><i style="width:${Math.min(100, pet.exp / need * 100)}%"></i></div>
+                </div>
+                <div class="detail-stat">
+                  <label>战力</label>
+                  <b>${formatNum(petPower(pet))}</b>
+                </div>
+                <div class="detail-stat">
+                  <label>碎片</label>
+                  <b>×${pet.copies}</b>
+                </div>
+              </div>
+              <div class="detail-break-row">
+                <span>突破 +${pet.enhance || 0} / ${maxEnhance}</span>
+                <span class="break-rate">成功率 ${rate}%</span>
+                <span class="break-resources">重复宠物 ×${pet.copies}</span>
+              </div>
+              <div class="detail-equip-row">
+                <div class="equip-slot-compact" onclick="toggleEquipSelect('${pet.uid}', '武器')">
+                  <span class="equip-icon">🗡️</span>
+                  <span class="equip-name ${weapon ? "has" : "empty"}">${weapon ? equipmentDef(weapon.eid).name : "空"}</span>
+                  <span class="equip-arrow">▼</span>
+                </div>
+                <div class="equip-slot-compact" onclick="toggleEquipSelect('${pet.uid}', '衣服')">
+                  <span class="equip-icon">🛡️</span>
+                  <span class="equip-name ${armor ? "has" : "empty"}">${armor ? equipmentDef(armor.eid).name : "空"}</span>
+                  <span class="equip-arrow">▼</span>
+                </div>
+                <div class="equip-slot-compact" onclick="toggleEquipSelect('${pet.uid}', '光环')">
+                  <span class="equip-icon">✨</span>
+                  <span class="equip-name ${aura ? "has" : "empty"}">${aura ? equipmentDef(aura.eid).name : "空"}</span>
+                  <span class="equip-arrow">▼</span>
+                </div>
+              </div>
+              <div id="equipSelectPanel" class="equip-select-panel" style="display:none;"></div>
+              <div class="detail-actions-row">
+                <button class="action-btn primary" onclick="train('${pet.uid}')" ${state.data.food < cost.food || state.data.gold < cost.gold || pet.level >= 80 ? "disabled" : ""}>
+                  升级 <span class="cost">${formatNum(cost.food)}果/${formatNum(cost.gold)}金</span>
+                </button>
+                <button class="action-btn" onclick="starUp('${pet.uid}')" ${pet.stars >= 6 || state.data.shard < scost.shard || pet.copies < scost.copies ? "disabled" : ""}>
+                  升星 <span class="cost">${scost.copies}碎片/${scost.shard}星尘</span>
+                </button>
+                <div class="break-group">
+                  <button class="action-btn break-main" onclick="openBreakView('${pet.uid}')" ${enhanceDone || pet.copies < 1 ? "disabled" : ""}>突破 ${rate}%</button>
+                </div>
+              </div>
+              <div class="detail-legend">
+                <span>💡 升星=星尘+碎片</span>
+                <span>🔁 突破=重复宠物</span>
+                <span>🛡️ 保级防掉级</span>
+                <span>🍀 幸运+15%</span>
+              </div>
+            </div>
+          `;
+        })()}
+      </section>
+    `,
+    breakView: `
+      <section class="modal-card break-modal">
+        ${close}
+        ${(function() {
+          const pet = state.data.roster.find(item => item.uid === state.breakPetUid);
+          if (!pet) return "<p>伙伴不存在</p>";
+          const base = monster(pet.mid);
+          const maxEnhance = enhanceMax(pet);
+          const currentEnhance = pet.enhance || 0;
+          const isMax = currentEnhance >= maxEnhance;
+          const baseRate = enhanceRate(pet);
+          const hasBoost = state.data.boostCard > 0;
+          const hasProtect = state.data.protectCard > 0;
+          const useBoost = state.breakUseBoost || false;
+          const useProtect = state.breakUseProtect || false;
+          const finalRate = Math.min(95, baseRate + (useBoost ? 15 : 0));
+          const canBreak = !isMax && pet.copies >= 1;
+          return `
+            <div class="break-header">
+              <div class="break-pet-info">
+                <h2>${base.name}</h2>
+                <span class="break-rare ${base.rare.toLowerCase()}">${base.rare}</span>
+                <span>当前突破 +${currentEnhance} / ${maxEnhance}</span>
+              </div>
+              <div class="break-copies">重复宠物 ×${pet.copies}</div>
+            </div>
+            <div class="break-body">
+              <div class="break-visual ${state.breakAnimating ? "animating" : ""} ${state.breakResult || ""}">
+                <div class="break-number">+${currentEnhance}</div>
+                ${state.breakResult === "success" ? `<div class="break-flash success-flash">✨</div>` : ""}
+                ${state.breakResult === "fail" ? `<div class="break-flash fail-flash">💥</div>` : ""}
+                <div class="break-status-text">
+                  ${state.breakResult === "success" ? "突破成功！" : ""}
+                  ${state.breakResult === "fail" ? "突破失败" : ""}
+                </div>
+              </div>
+              <div class="break-controls">
+                <div class="break-rate-display">
+                  <span>成功率</span>
+                  <strong style="color: ${finalRate >= 70 ? "#22c55e" : finalRate >= 40 ? "#f59e0b" : "#ef4444"}">${finalRate}%</strong>
+                </div>
+                <div class="break-toggle-row">
+                  <label class="toggle-label ${hasProtect && canBreak ? "" : "disabled"}">
+                    <input type="checkbox" ${useProtect ? "checked" : ""} onchange="state.breakUseProtect=this.checked;render()" ${!hasProtect || !canBreak ? "disabled" : ""}>
+                    🛡️ 使用保级卡（${state.data.protectCard}张）
+                    <span class="toggle-hint">失败不掉级</span>
+                  </label>
+                </div>
+                <div class="break-toggle-row">
+                  <label class="toggle-label ${hasBoost && canBreak ? "" : "disabled"}">
+                    <input type="checkbox" ${useBoost ? "checked" : ""} onchange="state.breakUseBoost=this.checked;render()" ${!hasBoost || !canBreak ? "disabled" : ""}>
+                    🍀 使用幸运符（${state.data.boostCard}张）
+                    <span class="toggle-hint">成功率 +15%</span>
+                  </label>
+                </div>
+              </div>
+              <div class="break-actions">
+                <button class="break-btn primary" onclick="executeBreak()" ${!canBreak || state.breakAnimating ? "disabled" : ""}>${isMax ? "已满级" : "突破"}</button>
+                <button class="break-btn" onclick="closeBreakView()">取消</button>
+              </div>
+              ${!canBreak && !isMax ? `<div class="break-warning">重复宠物不足，需要至少 1 只同名宠物。</div>` : ""}
+              ${isMax ? `<div class="break-warning success">已到达最高突破等级。</div>` : ""}
+            </div>
+          `;
+        })()}
       </section>
     `,
     enhanceGuide: `
@@ -1406,44 +2178,90 @@ function petEquipList(petUid) {
   return state.data.equipment.filter(item => item.petUid === petUid);
 }
 
-function petCard(pet, compact = false) {
+function renderStars(stars) {
+  const maxStars = 6;
+  let html = "";
+  for (let i = 1; i <= maxStars; i += 1) {
+    const filled = i <= stars;
+    let cls = "star";
+    if (filled) {
+      if (stars <= 2) cls += " star-gold";
+      else if (stars <= 4) cls += " star-colorful";
+      else cls += " star-rainbow";
+    } else {
+      cls += " star-empty";
+    }
+    if (stars >= 6) cls += " star-max";
+    html += `<span class="${cls}">${filled ? "★" : "☆"}</span>`;
+  }
+  return html;
+}
+
+function renderEquipSlotGroup(pet, slot, icon, current, availableEquip) {
+  const sorted = availableEquip
+    .filter(e => getEquipSlot(e.eid) === slot)
+    .sort((a, b) => (equipOrder[equipmentRareKey(equipmentDef(b.eid))] || 0) - (equipOrder[equipmentRareKey(equipmentDef(a.eid))] || 0));
+  return `
+    <div class="equip-slot-group">
+      <div class="equip-slot-label">${icon} ${slot}</div>
+      <div class="equip-slot-items">
+        <div class="equip-row equipped-row">
+          <span class="equip-label">已穿戴</span>
+          ${current ? `
+            <button class="equip-btn equipped ${equipmentRareKey(equipmentDef(current.eid)).toLowerCase()}" onclick="equipItemFromDetail('${pet.uid}', '', '${slot}')">
+              ${equipmentRarity[equipmentRareKey(equipmentDef(current.eid))].name} ${equipmentDef(current.eid).name} (${equipmentPower(current)}) ×
+            </button>
+          ` : `<span class="equip-empty">空</span>`}
+        </div>
+        <div class="equip-row available-row">
+          <span class="equip-label">可穿戴</span>
+          ${sorted.map(e => {
+            const def = equipmentDef(e.eid);
+            const rareKey = equipmentRareKey(def);
+            return `<button class="equip-btn ${rareKey.toLowerCase()}" onclick="equipItemFromDetail('${pet.uid}', '${e.uid}', '${slot}')">${equipmentRarity[rareKey].name} ${def.name} (${equipmentPower(e)})</button>`;
+          }).join("") || `<span class="equip-empty">无可用装备</span>`}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function petCard(pet) {
   const base = monster(pet.mid);
   const active = state.data.active.includes(pet.uid);
-  const cost = levelCost(pet);
-  const scost = starCost(pet);
-  const need = expNeed(pet.level);
   const equipped = petEquipList(pet.uid);
-  const maxEnhance = enhanceMax(pet);
-  const rate = enhanceRate(pet);
-  const boostRate = enhanceRate(pet, true);
-  const enhanceDone = (pet.enhance || 0) >= maxEnhance;
+  const hasUpgrade = state.data.food >= levelCost(pet).food && state.data.gold >= levelCost(pet).gold && pet.level < 80;
+  const hasStar = pet.stars < 6 && state.data.shard >= starCost(pet).shard && pet.copies >= starCost(pet).copies;
+  const hasEnhance = (pet.enhance || 0) < enhanceMax(pet) && pet.copies >= 1;
+  const hasEquip = state.data.equipment.some(e => !e.petUid);
+  const hasAction = hasUpgrade || hasStar || hasEnhance || hasEquip;
+  const weapon = equipped.find(e => getEquipSlot(e.eid) === "武器");
+  const armor = equipped.find(e => getEquipSlot(e.eid) === "衣服");
+  const aura = equipped.find(e => getEquipSlot(e.eid) === "光环");
   return `
-    <article class="card pet-card ${rarityBorderClass(base.rare)} ${active ? "selected" : ""}">
-      <div class="pet-title">
-        <div>
+    <article class="card pet-card-compact ${rarityBorderClass(base.rare)} ${active ? "selected" : ""}" onclick="openPetDetail('${pet.uid}')">
+      <div class="pet-card-header">
+        <div class="pet-name-row">
           <strong>${base.name}</strong>
-          <span>${elements[base.element]}系 · ${roles[base.role]}</span>
+          <span class="star-display">${renderStars(pet.stars)}</span>
         </div>
-        <i class="${rarityClass(base.rare)}">${base.rare}</i>
+        <div class="pet-card-badges">
+          <i class="${rarityClass(base.rare)}">${base.rare}</i>
+          ${hasAction ? `<span class="action-hint">❗</span>` : ""}
+          ${active ? `<span class="active-badge">上阵</span>` : ""}
+        </div>
       </div>
-      ${compact ? "" : `<p class="muted">${base.skill}：${base.bio}</p>`}
-      <div class="stat-grid">
-        <div><span>等级</span><b>${pet.level}</b></div>
-        <div><span>星级</span><b>${pet.stars}</b></div>
-        <div><span>强化</span><b>+${pet.enhance || 0}/${maxEnhance}</b></div>
-        <div><span>战力</span><b>${formatNum(petPower(pet))}</b></div>
+      <div class="pet-card-stats">
+        <span>Lv.${pet.level}</span>
+        <span>+${pet.enhance || 0}</span>
+        <span>战力 ${formatNum(petPower(pet))}</span>
       </div>
-      <div class="bar"><i style="width:${Math.min(100, pet.exp / need * 100)}%"></i></div>
-      <div class="actions">
-        <button class="${active ? "primary" : ""}" onclick="toggleActive('${pet.uid}')">${active ? "已上阵" : "上阵"}</button>
-        <button onclick="train('${pet.uid}')" ${state.data.food < cost.food || state.data.gold < cost.gold ? "disabled" : ""}>升级</button>
-        <button onclick="starUp('${pet.uid}')" ${pet.stars >= 6 || state.data.shard < scost.shard || pet.copies < scost.copies ? "disabled" : ""}>升星</button>
-        <button onclick="state.view='equipment';render()">装备</button>
-        <button onclick="enhancePet('${pet.uid}')" ${enhanceDone || pet.copies < 1 ? "disabled" : ""}>强化 ${rate}%</button>
-        <button onclick="enhancePet('${pet.uid}', true, false)" ${enhanceDone || pet.copies < 1 || state.data.protectCard < 1 ? "disabled" : ""}>防跌</button>
-        <button onclick="enhancePet('${pet.uid}', false, true)" ${enhanceDone || pet.copies < 1 || state.data.boostCard < 1 ? "disabled" : ""}>幸运 ${boostRate}%</button>
+      <div class="pet-card-equip ${aura ? "has-aura" : ""}">
+        <span>🗡️${weapon ? equipmentDef(weapon.eid).name : "空"}</span>
+        <span>🛡️${armor ? equipmentDef(armor.eid).name : "空"}</span>
+        <span>✨${aura ? equipmentDef(aura.eid).name : "空"}</span>
       </div>
-      <p class="cost-line">升级 ${formatNum(cost.food)} 果/${formatNum(cost.gold)} 金 · 升星 ${scost.copies} 碎片/${scost.shard} 星尘 · 重复宠物 ${pet.copies} · 防跌卡 ${state.data.protectCard} · 幸运卡 ${state.data.boostCard}${equipped.length ? ` · 穿戴 ${equipped.map(item => equipmentDef(item.eid).name).join("、")}` : ""}</p>
+      <div class="pet-card-click-hint">点击查看详情 →</div>
     </article>
   `;
 }
@@ -1524,14 +2342,55 @@ function renderOnboarding() {
 
 function renderHome() {
   const idle = pendingIdle();
-  const next = stageById(Math.min(stages.length, state.data.clearedStage + 1));
+  const next = stageById(state.data.clearedStage + 1);
   return `
-    ${viewShell("训练师大厅", "从注册选初始伙伴开始，核心循环是挂机收益、刷图解锁、召唤扩充阵容、养成后继续推图。", `<button class="primary" onclick="state.view='idle';render()">查看挂机</button>`)}
+    ${viewShell("训练师大厅", "从注册选初始伙伴开始，核心循环是挂机收益、刷图解锁、召唤扩充阵容、养成后继续推图。", `<button class="primary" onclick="state.view='campaign';render()">开始冒险</button>`)}
     <div class="summary-grid">
-      <section class="metric"><span>通关进度</span><strong>${state.data.clearedStage}/${stages.length}</strong><p>${chapters[Math.floor(Math.max(0, state.data.clearedStage - 1) / 8)]?.[0] || chapters[0][0]}</p></section>
+      <section class="metric"><span>通关进度</span><strong>${state.data.clearedStage} 关</strong><p>${chapters[Math.min(Math.floor(Math.max(0, state.data.clearedStage - 1) / 8), chapters.length - 1)]?.[0] || chapters[0][0]}</p></section>
       <section class="metric"><span>队伍战力</span><strong>${formatNum(teamPower())}</strong><p>下一关推荐 ${formatNum(next.power)}</p></section>
       <section class="metric"><span>伙伴数量</span><strong>${state.data.roster.length}/${monsters.length}</strong><p>上阵 ${state.data.active.length}/5</p></section>
       <section class="metric"><span>待领挂机</span><strong>${idle.minutes} 分钟</strong><p>${formatReward(idle.reward) || "暂无收益"}</p></section>
+    </div>
+    ${state.data.firstCharge ? `
+      <div class="first-charge-sign">
+        <div class="sign-header">
+          <span>🎁 首充3日签到</span>
+          <span>${state.data.firstChargeSignDays.length}/3 天</span>
+        </div>
+        <div class="sign-grid">
+          ${[1, 2, 3].map(day => {
+            const rewards = getFirstChargeRewards()[day];
+            const claimed = state.data.firstChargeSignDays.includes(day);
+            const canClaim = canClaimFirstChargeDay(day);
+            return `
+              <div class="sign-card ${claimed ? "claimed" : canClaim ? "available" : "locked"}">
+                <div class="sign-day">${rewards.title}</div>
+                <div class="sign-rewards">
+                  ${rewards.rewards.map(reward => `<span>${reward.icon} ${reward.label}</span>`).join("")}
+                </div>
+                <button onclick="claimFirstChargeDay(${day})" ${!canClaim ? "disabled" : ""}>${claimed ? "已领取" : canClaim ? "领取" : "未解锁"}</button>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      </div>
+    ` : ""}
+    <div class="chat-section">
+      <div class="chat-header">
+        <span>💬 世界聊天</span>
+        <span class="chat-count">${(state.data.chatMessages || []).length} 条</span>
+      </div>
+      <div class="chat-messages" id="chatContainer">
+        ${(state.data.chatMessages || []).map(chatMessageMarkup).join("") || `<p class="empty">还没有聊天消息。</p>`}
+      </div>
+      <div class="chat-input-row">
+        <input id="chatInput" placeholder="说点什么..." maxlength="200" onkeydown="if(event.key==='Enter')sendChatMessage()">
+        <button onclick="sendChatMessage()">发送</button>
+      </div>
+    </div>
+    <div class="goal-panel">
+      <span class="goal-icon">🎯</span>
+      <span class="goal-text">${getNextGoal()}</span>
     </div>
     <div class="grid two">
       <section class="card">
@@ -1548,11 +2407,31 @@ function renderHome() {
   `;
 }
 
+function getNextGoal() {
+  const save = state.data;
+  if (!save) return "开始冒险吧！";
+  const nextStage = save.clearedStage + 1;
+  if (nextStage <= stages.length) {
+    return `通关第 ${nextStage} 关（推荐战力 ${formatNum(stageById(nextStage).power)}）`;
+  }
+  return `继续推图，当前 ${save.clearedStage} 关 · 目标：战力 ${formatNum(teamPower() + 500)}`;
+}
+
 function renderIdle() {
   const idle = pendingIdle();
   const stage = stageById(state.data.farmingStage);
   const rate = idleRate();
-  const farmOptions = stages.filter(item => item.id <= Math.max(1, state.data.clearedStage));
+  const farmOptions = [];
+  const maxShow = Math.min(state.data.clearedStage || 1, 100);
+  for (let i = 1; i <= maxShow; i++) {
+    farmOptions.push(stageById(i));
+  }
+  if (state.data.clearedStage > 100) {
+    farmOptions.splice(0, farmOptions.length - 20);
+  }
+  if (farmOptions.length === 0) {
+    farmOptions.push(stageById(1));
+  }
   return `
     ${viewShell("挂机刷图", "离线和在线都会累计挂机收益，上限 8 小时。通关越靠后的关卡，每分钟金币和经验果越高。", `<button class="primary" onclick="claimIdle()" ${idle.minutes <= 0 ? "disabled" : ""}>领取收益</button>`)}
     <div class="grid two">
@@ -1570,7 +2449,7 @@ function renderIdle() {
         </div>
         <div class="actions">
           <button onclick="sweep()" ${state.data.stamina < 3 ? "disabled" : ""}>快速扫荡</button>
-          <button onclick="challenge(${Math.min(stages.length, state.data.clearedStage + 1)})" ${state.data.stamina < 5 ? "disabled" : ""}>挑战下一关</button>
+          <button onclick="challenge(${state.data.clearedStage + 1})" ${state.data.stamina < 5 ? "disabled" : ""}>挑战下一关</button>
         </div>
       </section>
       <section class="card">
@@ -1584,30 +2463,36 @@ function renderIdle() {
 }
 
 function renderCampaign() {
-  const nextId = Math.min(stages.length, state.data.clearedStage + 1);
+  const nextId = state.data.clearedStage + 1;
   const nextStage = stageById(nextId);
   const nextElement = stageElement(nextStage);
   const nextAdv = elementAdvantage(nextElement);
+  const autoRunning = isAutoCampaignRunning();
+  const nextAutoSeconds = autoRunning ? Math.max(0, Math.ceil((state.autoCampaignNextAt - Date.now()) / 1000)) : 0;
   const towerFloor = state.data.towerFloor + 1;
   const towerPower = Math.floor(260 + towerFloor * 96 + Math.pow(towerFloor, 1.35) * 18);
   const towerEl = towerElement(towerFloor);
   const towerAdv = elementAdvantage(towerEl);
   const recent = state.data.battleRecords || [];
   return `
-    ${viewShell("闯关", "主线和试炼塔放在这里统一挑战。看当前目标、推荐战力和预计胜率即可；自动闯关会打到失败或资源不足后停止。")}
+    ${viewShell("闯关", "主线和试炼塔放在这里统一挑战。自动主线按时间逐关推进，不会一次性刷空体力。")}
     <div class="adventure-grid">
       <section class="card adventure-card">
-        <div class="adventure-head"><div><span>主线</span><h3>${nextStage.id}. ${nextStage.enemy}</h3><p>${nextStage.name} · ${elementName(nextElement)}系 · ${nextAdv.text}</p></div><strong>${state.data.clearedStage}/${stages.length}</strong></div>
+        <div class="adventure-head"><div><span>主线</span><h3>${nextStage.id}. ${nextStage.enemy}</h3><p>${nextStage.name} · ${elementName(nextElement)}系 · ${nextAdv.text}</p></div><strong>${state.data.clearedStage} 关</strong></div>
         <div class="stat-grid">
           <div><span>推荐战力</span><b>${formatNum(nextStage.power)}</b></div>
           <div><span>队伍战力</span><b>${formatNum(teamPower())}</b></div>
           <div><span>预计胜率</span><b>${battleChance(nextStage.power, nextElement)}%</b></div>
           <div><span>体力消耗</span><b>5</b></div>
         </div>
-        <p class="muted">胜利后自动推进到下一关，并把挂机地点推进到最新关卡。</p>
+        <p class="muted">胜利后推进到下一关，并把挂机地点推进到最新关卡。自动主线每 ${Math.round(AUTO_CAMPAIGN_MS / 1000)} 秒挑战 1 次。</p>
+        <div class="auto-status ${autoRunning ? "running" : ""}">
+          <span>${autoRunning ? "自动主线运行中" : "自动主线未开启"}</span>
+          <b>${autoRunning ? `${nextAutoSeconds} 秒后挑战` : `每次消耗 5 体力`}</b>
+        </div>
         <div class="actions">
-          <button class="primary" onclick="challenge(${nextId})" ${state.data.stamina < 5 || state.data.clearedStage >= stages.length ? "disabled" : ""}>挑战下一关</button>
-          <button onclick="autoCampaign()" ${state.data.stamina < 5 || state.data.clearedStage >= stages.length ? "disabled" : ""}>自动主线</button>
+          <button class="primary" onclick="challenge(${nextId})" ${state.data.stamina < 5 ? "disabled" : ""}>挑战下一关</button>
+          <button onclick="toggleAutoCampaign()" ${!autoRunning && state.data.stamina < 5 ? "disabled" : ""}>${autoRunning ? "停止自动" : "开启自动"}</button>
         </div>
       </section>
       <section class="card adventure-card">
@@ -1654,12 +2539,12 @@ function renderCampaign() {
 function renderTeam() {
   const sorted = sortedRoster();
   return `
-    ${viewShell("阵容编成", "最多上阵 5 名伙伴。建议保留前排、输出、辅助或控制，队伍元素和定位越丰富会有少量协同加成。")}
+    ${viewShell("我的伙伴", "最多上阵 5 名伙伴。点击卡片上的按钮进行升级、升星和突破。", `<button onclick="openModal('enhanceGuide')">突破指南</button>`)}
     <div class="formation-bar">${[0, 1, 2, 3, 4].map(i => {
       const pet = activePets()[i];
       return `<div class="slot">${pet ? `<strong>${monster(pet.mid).name}</strong><span>${formatNum(petPower(pet))}</span>` : `<span>空位</span>`}</div>`;
     }).join("")}</div>
-    <div class="grid three">${sorted.map(pet => petCard(pet, true)).join("")}</div>
+    <div class="grid three">${sorted.map(pet => petCard(pet)).join("")}</div>
   `;
 }
 
@@ -1709,10 +2594,10 @@ function renderSummon() {
       <section class="card draw-card premium">
         <div>
           <h3>装备抽奖</h3>
-          <p>装备分 N、R、SR、SSR 四档，可在装备界面给伙伴穿戴。</p>
+          <p>装备分 N、R、SR、SSR 四档，可在伙伴页面查看穿戴情况。</p>
           <div class="rate-row"><span>N 42%</span><span>R 32%</span><span>SR 20%</span><span>SSR 6%</span></div>
         </div>
-        <div class="actions inline"><button class="primary" onclick="drawEquipment(1)" ${state.data.gem < 60 ? "disabled" : ""}>装备抽 1 次 · 60</button><button onclick="drawEquipment(10)" ${state.data.gem < 520 ? "disabled" : ""}>装备抽 10 次 · 520</button><button onclick="state.view='equipment';render()">查看装备</button></div>
+        <div class="actions inline"><button class="primary" onclick="drawEquipment(1)" ${state.data.gem < 60 ? "disabled" : ""}>装备抽 1 次 · 60</button><button onclick="drawEquipment(10)" ${state.data.gem < 520 ? "disabled" : ""}>装备抽 10 次 · 520</button><button onclick="state.view='team';render()">查看伙伴</button></div>
       </section>
       <h3 class="section-title">装备图鉴</h3>
       <div class="collection-grid">
@@ -1729,15 +2614,23 @@ function renderSummon() {
 }
 
 function renderEquipment() {
-  const items = [...state.data.equipment].sort((a, b) => equipmentPower(b) - equipmentPower(a));
+  const allItems = [...state.data.equipment].sort((a, b) => equipmentPower(b) - equipmentPower(a));
+  const filter = state.equipFilter || "all";
+  const items = filter === "all" ? allItems : allItems.filter(item => getEquipSlot(item.eid) === filter);
   const roster = [...state.data.roster].sort((a, b) => petPower(b) - petPower(a));
   return `
     ${viewShell("装备背包", "装备通过装备抽奖获得，按颜色区分品质。选择伙伴后点击穿戴，同一件装备可随时卸下或换人。", `<button class="primary" onclick="state.view='summon';state.summonTab='equipment';render()">去装备抽奖</button>`)}
     <div class="summary-grid">
-      <section class="metric"><span>装备数量</span><strong>${items.length}</strong><p>已穿戴 ${items.filter(item => item.petUid).length}</p></section>
-      <section class="metric"><span>最高品质</span><strong>${items[0] ? equipmentRarity[equipmentRareKey(equipmentDef(items[0].eid))].name : "-"}</strong><p>${items[0] ? equipmentDef(items[0].eid).name : "暂无装备"}</p></section>
+      <section class="metric"><span>装备数量</span><strong>${allItems.length}</strong><p>已穿戴 ${allItems.filter(item => item.petUid).length}</p></section>
+      <section class="metric"><span>最高品质</span><strong>${allItems[0] ? equipmentRarity[equipmentRareKey(equipmentDef(allItems[0].eid))].name : "-"}</strong><p>${allItems[0] ? equipmentDef(allItems[0].eid).name : "暂无装备"}</p></section>
       <section class="metric"><span>装备抽数</span><strong>${state.data.stats.equipDraws}</strong><p>累计装备抽取次数</p></section>
       <section class="metric"><span>队伍战力</span><strong>${formatNum(teamPower())}</strong><p>装备会计入伙伴战力</p></section>
+    </div>
+    <div class="equip-filter">
+      <button class="${filter === "all" ? "active" : ""}" onclick="state.equipFilter='all';render()">全部</button>
+      <button class="${filter === "武器" ? "active" : ""}" onclick="state.equipFilter='武器';render()">🗡️ 武器</button>
+      <button class="${filter === "衣服" ? "active" : ""}" onclick="state.equipFilter='衣服';render()">🛡️ 衣服</button>
+      <button class="${filter === "光环" ? "active" : ""}" onclick="state.equipFilter='光环';render()">✨ 光环</button>
     </div>
     ${items.length ? `
       <div class="collection-grid">
@@ -1746,7 +2639,7 @@ function renderEquipment() {
           const wearer = state.data.roster.find(pet => pet.uid === item.petUid);
           return `
             <article class="card equip-card ${equipBorderClass(def.rare)}">
-              <div class="pet-title"><div><strong>${def.name}</strong><span>${def.slot} · ${wearer ? `穿戴者 ${monster(wearer.mid).name}` : "未穿戴"}</span></div><i class="${equipRareClass(def.rare)}">${equipmentRarity[equipmentRareKey(def)].name}</i></div>
+              <div class="pet-title"><div><strong>${def.name}</strong><span>${getEquipSlot(item.eid)} · ${wearer ? `穿戴者 ${monster(wearer.mid).name}` : "未穿戴"}</span></div><i class="${equipRareClass(def.rare)}">${equipmentRarity[equipmentRareKey(def)].name}</i></div>
               <p>${def.desc}</p>
               <div class="mini-stats"><span>HP ${def.hp}</span><span>攻 ${def.atk}</span><span>防 ${def.def}</span><span>战力 ${equipmentPower(item)}</span></div>
               <div class="equip-control">
@@ -1794,7 +2687,7 @@ function renderTasks() {
         return `
           <article class="card task-row">
             <div><span>${task.type}</span><h3>${task.title}</h3><p>${formatReward(task.reward)}</p></div>
-            <button class="primary" onclick="claimTask('${task.id}')" ${!done || claimed ? "disabled" : ""}>${claimed ? "已领取" : done ? "领取" : "未完成"}</button>
+            <button class="primary" onclick="claimTask('${task.id}')" ${!done || claimed ? "disabled" : ""}>${claimed ? "已领取" : done ? "领取奖励" : "未完成"}</button>
           </article>
         `;
       }).join("")}
@@ -1803,9 +2696,11 @@ function renderTasks() {
 }
 
 function renderShop() {
+  const capCost = state.data.maxStamina >= STAMINA_CAP_LIMIT ? "已满" : `星钻 ${staminaBreakCost()}`;
   const items = [
     ["ticket", "召唤券", "用于抽取新伙伴或重复碎片", "星钻 90"],
     ["stamina", "体力包", "用于快速扫荡和手动推图", "星钻 50"],
+    ["staminaCap", "体力上限突破", `永久上限 +5，当前 ${state.data.maxStamina}/${STAMINA_CAP_LIMIT}`, capCost],
     ["shard", "星尘包", "升星和装备强化材料", "金币 420"],
     ["food", "经验果箱", "快速提升伙伴等级", "金币 360"],
     ["protectCard", "防跌卡", "+10 之后强化失败时防止等级 -1", "星钻 120"],
@@ -1817,7 +2712,7 @@ function renderShop() {
       ${items.map(([id, name, text, price]) => `
         <article class="card shop-row">
           <div><h3>${name}</h3><p>${text}</p><span>${price}</span></div>
-          <button onclick="buy('${id}')">购买</button>
+          <button onclick="buy('${id}')" ${id === "staminaCap" && state.data.maxStamina >= STAMINA_CAP_LIMIT ? "disabled" : ""}>购买</button>
         </article>
       `).join("")}
     </div>
@@ -1840,12 +2735,10 @@ function renderContent() {
     campaign: renderCampaign,
     team: renderTeam,
     summon: renderSummon,
-    equipment: renderEquipment,
-    growth: renderGrowth,
     tasks: renderTasks,
     shop: renderShop
   };
-  el.innerHTML = views[state.view]();
+  el.innerHTML = (views[state.view] || renderTeam)();
 }
 
 function render() {
@@ -1867,6 +2760,12 @@ function startTicker() {
   if (state.ticker) clearInterval(state.ticker);
   state.ticker = setInterval(() => {
     if (!state.data) return;
+    recoverStamina();
+    persist();
+    if (isAutoCampaignRunning() && state.view === "campaign") {
+      render();
+      return;
+    }
     renderResources();
   }, IDLE_TICK_MS);
 }
