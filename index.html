@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>星萌远征 - 文字挂机刷图页游原型</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <section class="top-strip">
+      <section class="panel resource-panel" id="resourcePanel">
+        <h2>资源</h2>
+        <div class="resource-grid" id="resources"></div>
+      </section>
+      <div class="account-panel" id="accountPanel"></div>
+    </section>
+
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">文字挂机刷图页游</p>
+        <h1>星萌远征</h1>
+      </div>
+    </header>
+
+    <main class="game-layout">
+      <aside class="sidebar">
+        <nav class="nav" id="nav"></nav>
+        <aside class="rightbar">
+          <section class="panel">
+            <h2>战报</h2>
+            <div class="battle-log" id="battleLog"></div>
+          </section>
+        </aside>
+      </aside>
+
+      <section class="content" id="content"></section>
+    </main>
+  </div>
+  <div id="modalRoot"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
