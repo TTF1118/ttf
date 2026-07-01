@@ -1958,6 +1958,8 @@ function petCard(pet) {
   const hasEnhance = (pet.enhance || 0) < enhanceMax(pet) && pet.copies >= 1;
   const hasEquip = state.data.equipment.some(e => !e.petUid);
   const hasAction = hasUpgrade || hasStar || hasEnhance || hasEquip;
+  const activeLocked = active && state.data.active.length <= 1;
+  const activeFull = !active && state.data.active.length >= 5;
   const weapon = equipped.find(e => getEquipSlot(e.eid) === "武器");
   const armor = equipped.find(e => getEquipSlot(e.eid) === "衣服");
   const aura = equipped.find(e => getEquipSlot(e.eid) === "光环");
@@ -1984,7 +1986,10 @@ function petCard(pet) {
         <span>🛡️${armor ? equipmentDef(armor.eid).name : "空"}</span>
         <span>✨${aura ? equipmentDef(aura.eid).name : "空"}</span>
       </div>
-      <div class="pet-card-click-hint">点击查看详情 →</div>
+      <div class="pet-card-actions">
+        <button class="${active ? "soft-danger" : "primary"}" onclick="event.stopPropagation();toggleActive('${pet.uid}')" ${activeLocked || activeFull ? "disabled" : ""}>${active ? "下阵" : activeFull ? "上阵已满" : "上阵"}</button>
+        <button onclick="event.stopPropagation();openPetDetail('${pet.uid}')">详情/养成</button>
+      </div>
     </article>
   `;
 }
@@ -2072,7 +2077,7 @@ function renderHome() {
       <section class="metric"><span>通关进度</span><strong>${state.data.clearedStage} 关</strong><p>${chapters[Math.min(Math.floor(Math.max(0, state.data.clearedStage - 1) / 8), chapters.length - 1)]?.[0] || chapters[0][0]}</p></section>
       <section class="metric"><span>队伍战力</span><strong>${formatNum(teamPower())}</strong><p>下一关推荐 ${formatNum(next.power)}</p></section>
       <section class="metric"><span>伙伴数量</span><strong>${state.data.roster.length}/${monsters.length}</strong><p>上阵 ${state.data.active.length}/5</p></section>
-      <section class="metric"><span>待领挂机</span><strong>${idle.minutes} 分钟</strong><p>${formatReward(idle.reward) || "暂无收益"}</p></section>
+      <section class="metric idle-claim-metric"><span>待领挂机</span><strong>${idle.minutes} 分钟</strong><p>${formatReward(idle.reward) || "暂无收益"}</p><button class="primary mini-claim" onclick="claimIdle()" ${idle.minutes <= 0 ? "disabled" : ""}>领取</button></section>
     </div>
     ${state.data.firstCharge ? `
       <div class="first-charge-sign">
