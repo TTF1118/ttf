@@ -173,15 +173,53 @@ function activePets() {
 }
 
 function petPower(pet) {
+  return petPowerInSave(pet, state.data);
+}
+
+function petPowerInSave(pet, save = state.data) {
   const base = monster(pet.mid);
   const rarity = { N: 0.92, R: 1.02, SR: 1.16, SSR: 1.34, UR: 1.55 }[base.rare];
   const roleBonus = { guard: 1.08, support: 1.02, control: 1.04, strike: 1.08, blast: 1.1 }[base.role];
   const stat = base.hp * 0.34 + base.atk * 3.2 + base.def * 2.15 + base.spd * 1.65;
-  const equipBonus = state.data?.equipment
+  const equipBonus = save?.equipment
     ?.filter(item => item.petUid === pet.uid)
     .reduce((sum, item) => sum + equipmentPower(item), 0) || 0;
   const enhanceBonus = (pet.enhance || 0) * (36 + (pet.enhance || 0) * 4);
   return Math.floor((stat + pet.level * 18 + pet.stars * 72 + pet.gear * 20 + enhanceBonus + equipBonus) * rarity * roleBonus);
+}
+
+function allPlayerSaves() {
+  const saves = [];
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (!key || !key.startsWith(STORAGE_PREFIX)) continue;
+    try {
+      const save = JSON.parse(localStorage.getItem(key));
+      if (save?.roster?.length) {
+        saves.push({ account: key.slice(STORAGE_PREFIX.length), save });
+      }
+    } catch {
+      // Ignore damaged local save data.
+    }
+  }
+  return saves;
+}
+
+function petLeaderboard() {
+  return allPlayerSaves()
+    .flatMap(({ account, save }) => (save.roster || []).map(pet => {
+      const base = monster(pet.mid);
+      return {
+        account,
+        playerName: save.name || account || "训练师",
+        playerTitle: save.title || "训练师",
+        pet,
+        base,
+        power: petPowerInSave(pet, save),
+        isCurrent: account === state.account
+      };
+    }))
+    .sort((a, b) => b.power - a.power);
 }
 
 function equipmentPower(item) {
@@ -1305,14 +1343,25 @@ function claimPetRankRewards() {
     { gem: 50, title: "精英伙伴" },
     { gem: 30, title: "新星伙伴" }
   ];
-  const ranking = [...state.data.roster].sort((a, b) => petPower(b) - petPower(a)).slice(0, 3);
+  const ranking = petLeaderboard().slice(0, 3);
   if (!ranking.length) return;
   let totalGem = 0;
-  ranking.forEach((pet, index) => {
+  ranking.forEach((row, index) => {
+    if (row.account !== state.account) return;
     const reward = rewards[index];
+    const pet = state.data.roster.find(item => item.uid === row.pet.uid);
+    if (!pet) return;
     pet.rankTitle = reward.title;
     totalGem += reward.gem;
   });
+  if (totalGem <= 0) {
+    state.data.petRankRewardDate = today;
+    addLog("今日伙伴战力榜前三名暂无你的伙伴，未获得排行奖励。");
+    persist();
+    render();
+    showToast("未获得排行奖励", "今日前三名暂无你的伙伴");
+    return;
+  }
   state.data.gem += totalGem;
   state.data.petRankRewardDate = today;
   addLog(`领取伙伴战力榜奖励，钻石 +${totalGem}，前三名获得称号。`);
@@ -2345,7 +2394,7 @@ function renderEquipment() {
 
 function renderGrowth() {
   const sorted = sortedRoster();
-  const ranking = [...state.data.roster].sort((a, b) => petPower(b) - petPower(a));
+  const ranking = petLeaderboard();
   const rankClaimed = state.data.petRankRewardDate === currentDateKey();
   const rankRewards = ["80钻 · 冠军伙伴", "50钻 · 精英伙伴", "30钻 · 新星伙伴"];
   return `
@@ -2358,18 +2407,22 @@ function renderGrowth() {
     </div>
     <section class="card pet-rank-card">
       <div class="chapter-head">
-        <div><h3>伙伴战力排行榜</h3><p>每日按当前战力前三名发放钻石和伙伴称号。</p></div>
+        <div><h3>伙伴战力排行榜</h3><p>汇总本机所有玩家账号的伙伴战力。每日全榜前三名发放钻石和伙伴称号。</p></div>
         <button class="primary" onclick="claimPetRankRewards()" ${rankClaimed ? "disabled" : ""}>${rankClaimed ? "今日已领" : "领取今日奖励"}</button>
       </div>
       <div class="pet-rank-list">
-        ${ranking.slice(0, 10).map((pet, index) => {
-          const base = monster(pet.mid);
+        ${ranking.slice(0, 10).map((row, index) => {
+          const base = row.base;
           return `
-            <div class="pet-rank-row ${index < 3 ? "top" : ""} ${base.rare.toLowerCase()}">
+            <div class="pet-rank-row ${index < 3 ? "top" : ""} ${row.isCurrent ? "mine" : ""} ${base.rare.toLowerCase()}">
               <b>${index + 1}</b>
-              <span class="rank-name"><i class="${rarityClass(base.rare)}">${base.rare}</i>${petDisplayName(pet)}${pet.rankTitle ? `<em>${pet.rankTitle}</em>` : ""}</span>
+              <span class="rank-player">
+                <strong class="${hasMonthCard(row.playerName) ? "vip-name" : ""}">${hasMonthCard(row.playerName) ? "👑 " : ""}${escapeHtml(row.playerName)}</strong>
+                <small>${escapeHtml(row.playerTitle)}</small>
+              </span>
+              <span class="rank-name"><i class="${rarityClass(base.rare)}">${base.rare}</i>${petDisplayName(row.pet)}${row.pet.rankTitle ? `<em>${row.pet.rankTitle}</em>` : ""}</span>
               <span>${elements[base.element]}系 · ${roles[base.role]}</span>
-              <strong>${formatNum(petPower(pet))}</strong>
+              <strong>${formatNum(row.power)}</strong>
               <small>${rankRewards[index] || "参与排名"}</small>
             </div>
           `;
